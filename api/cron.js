@@ -12,24 +12,11 @@ export default async function handler(req, res) {
 
   const { data: expired } = await supabase
     .from('orders')
-    .select('id, product_id')
+    .select('id')
     .eq('status', 'awaiting_payment')
     .lt('created_at', cutoff);
 
-  let restored = 0;
-
   for (const o of expired || []) {
-    // Only restore manual-stock products (key-based products are claimed at delivery, not reserved)
-    if (o.product_id) {
-      const { count: keyCount } = await supabase
-        .from('product_keys')
-        .select('id', { count: 'exact', head: true })
-        .eq('product_id', o.product_id);
-      if (!(keyCount > 0)) {
-        await supabase.rpc('increment_stock', { p_id: o.product_id });
-        restored += 1;
-      }
-    }
     await supabase.from('orders').update({ status: 'expired' }).eq('id', o.id);
     await supabase.from('order_events').insert({ order_id: o.id, status: 'expired', note: 'Auto-expired after 24h' });
   }
@@ -43,5 +30,5 @@ export default async function handler(req, res) {
 
   res.statusCode = 200;
   res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify({ expired: (expired || []).length, restored, heartbeat: true }));
+  res.end(JSON.stringify({ expired: (expired || []).length, heartbeat: true }));
 }
