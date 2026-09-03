@@ -16,6 +16,13 @@ export default async function handler(req, res) {
     return;
   }
 
+  // Verify Telegram's secret token (if configured) so only Telegram can call us
+  if (process.env.WEBHOOK_SECRET && req.headers['x-telegram-bot-api-secret-token'] !== process.env.WEBHOOK_SECRET) {
+    res.statusCode = 401;
+    res.end('unauthorized');
+    return;
+  }
+
   try {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
