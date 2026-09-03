@@ -1,7 +1,7 @@
 import { supabase, getSettings } from '../supabase.js';
 import {
   esc, fmtNum, shortId, safeEdit, setPending, clearPending,
-  availableStock, hasKeys, notifyAdmins, statusLabel, getOrCreateUser,
+  availableStock, hasKeys, notifyAdmins, statusLabel, getOrCreateUser, ack,
 } from '../lib.js';
 import { mainMenu } from '../keyboards.js';
 
@@ -28,7 +28,7 @@ export function adminOrderText(order) {
 }
 
 export async function createOrder(ctx, productId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: p } = await supabase.from('products').select('*').eq('id', productId).maybeSingle();
   if (!p) return;
 
@@ -98,7 +98,7 @@ export async function createOrder(ctx, productId) {
 }
 
 export async function cancelOrder(ctx, orderId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
   if (!order) return;
 
@@ -147,7 +147,7 @@ export async function onPaymentText(ctx, pending) {
 
 export async function showMyOrders(ctx) {
   await getOrCreateUser(ctx);
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
   const { data: orders } = await supabase
     .from('orders')
     .select('*')
@@ -173,9 +173,9 @@ export async function showMyOrders(ctx) {
 }
 
 export async function showOrder(ctx, orderId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: o } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
-  if (!o) return ctx.answerCallbackQuery({ text: 'Order not found', show_alert: true }).catch(() => {});
+  if (!o) return ack(ctx, { text: 'Order not found', show_alert: true });
 
   const lines = [
     `🧾 <b>Order #${shortId(o.id)}</b>`,
@@ -221,7 +221,7 @@ export async function showOrder(ctx, orderId) {
 // ---- Admin approval/rejection ----
 
 export async function adminApprove(ctx, orderId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
   if (!order) return;
 
@@ -301,7 +301,7 @@ export async function adminApprove(ctx, orderId) {
 }
 
 export async function adminReject(ctx, orderId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
   if (!order) return;
 
