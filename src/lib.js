@@ -77,6 +77,20 @@ export async function notifyAdmins(ctx, text, keyboard) {
   }
 }
 
+export async function announceToChannel(ctx, text) {
+  const settings = await getSettings();
+  const channel = (settings.order_channel || '').trim();
+  if (!channel) return;
+  try {
+    await ctx.api.sendMessage(channel, text, {
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+    });
+  } catch (e) {
+    // bot probably isn't an admin of the channel — ignore silently
+  }
+}
+
 export async function safeEdit(ctx, text, keyboard) {
   try {
     await ctx.editMessageText(text, {
