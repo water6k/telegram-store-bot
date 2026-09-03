@@ -268,6 +268,64 @@ export async function showOrder(ctx, orderId) {
 
 // ---- Admin approval/rejection ----
 
+export async function showApproveConfirm(ctx, orderId) {
+  await ack(ctx);
+  const { data: o } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+  if (!o) return;
+
+  let stockNote = '';
+  if (o.product_id) {
+    const keyBased = await hasKeys({ id: o.product_id });
+    if (keyBased) {
+      const { count: keys } = await supabase.from('product_keys').select('id', { count: 'exact', head: true }).eq('product_id', o.product_id).eq('is_sold', false);
+      stockNote = keys > 0
+        ? `🔑 Keys in stock: <b>${keys}</b>`
+        : '⚠️ <b>No keys left</b> — add keys (🔑 Add Keys) before delivering.';
+    } else {
+      const { data: prod } = await supabase.from('products').select('delivery_instructions').eq('id', o.product_id).maybeSingle();
+      stockNote = prod?.delivery_instructions
+        ? '📄 Delivery via stored instructions.'
+        : '⚠️ No instructions set — delivery will say "contact support".';
+    }
+  }
+
+  const text = [
+    adminOrderText(o),
+    '',
+    stockNote,
+    '',
+    'Tap <b>✅ Confirm & Deliver</b> to send it to the buyer now.',
+  ].filter(Boolean).join('\n');
+
+  const kb = {
+    inline_keyboard: [
+      [{ text: '✅ Confirm & Deliver', callback_data: `adm:deliver:${o.id}` }],
+      [{ text: '🔙 Back', callback_data: `adm:order:${o.id}` }],
+    ],
+  };
+  await safeEdit(ctx, text, kb);
+}
+
+export async function showRejectConfirm(ctx, orderId) {
+  await ack(ctx);
+  const { data: o } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+  if (!o) return;
+
+  const text = [
+    adminOrderText(o),
+    '',
+    '❌ <b>Reject this order?</b>\nThe customer will be notified and stock restored.',
+  ].join('\n');
+
+  const kb = {
+    inline_keyboard: [
+      [{ text: '✅ Confirm Reject', callback_data: `adm:doreject:${orderId}` }],
+      [{ text: '🔙 Back', callback_data: `adm:order:${orderId}` }],
+    ],
+  };
+  await safeEdit(ctx, text, kb);
+}
+
 export async function adminApprove(ctx, orderId) {
   await ack(ctx);
   const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
@@ -277,11 +335,15 @@ export async function adminApprove(ctx, orderId) {
     return safeEdit(ctx, `Order #${shortId(orderId)} is already ${order.status}.`, mainMenu());
   }
 
-  // Deliver: claim a key if available, else use delivery instructions
+  // Deliver: claim a key atomically; never deliver an empty serial-stock product
   let deliveredText = null;
   if (order.product_id) {
+    const keyBased = await hasKeys({ id: order.product_id });
     const { data: key } = await supabase.rpc('claim_product_key', { p_product_id: order.product_id, p_order_id: order.id });
     deliveredText = key || null;
+    if (!deliveredText && keyBased) {
+      return safeEdit(ctx, `⚠️ <b>No keys available</b> for this product.\nAdd keys via 🔑 <b>Add Keys</b>, then approve again.`, mainMenu());
+    }
   }
   if (!deliveredText) {
     const { data: p } = await supabase.from('products').select('delivery_instructions').eq('id', order.product_id).maybeSingle();
