@@ -17,6 +17,9 @@ import {
   confirmDeleteProduct, deleteProduct, showAdminCategories, startAddCategory,
   showAdminCategory, startRenameCategory, deleteCategory, showAdminSettings, startEditSetting,
   startProductPhoto, removeProductPhoto,
+  showPaymentMethods, startAddPaymentMethod, choosePaymentNetwork,
+  showPaymentMethodMenu, setDefaultPaymentMethod, togglePaymentMethod,
+  confirmDeletePaymentMethod, deletePaymentMethod,
 } from './handlers/admin.js';
 import { clearPending, isAdmin, ack } from './lib.js';
 import { mainMenu } from './keyboards.js';
@@ -56,8 +59,8 @@ export async function routeCallback(ctx) {
     if (d.startsWith('prod:')) return showProduct(ctx, d.slice(5));
     if (d.startsWith('buy:')) return createOrder(ctx, d.slice(4));
     if (d.startsWith('pay:')) {
-      const [, pid] = d.split(':');
-      return createOrder(ctx, pid);
+      const [, pid, mid] = d.split(':');
+      return createOrder(ctx, pid, mid);
     }
     if (d.startsWith('ordcancel:')) return cancelOrder(ctx, d.slice(10));
     if (d.startsWith('ord:')) return showOrder(ctx, d.slice(4));
@@ -115,6 +118,14 @@ export async function routeCallback(ctx) {
     if (d.startsWith('adm:set:')) return adminGuard(ctx, (c) => startEditSetting(c, d.split(':')[2]));
     if (d.startsWith('adm:photorm:')) return adminGuard(ctx, (c) => removeProductPhoto(c, d.split(':')[2]));
     if (d.startsWith('adm:photo:')) return adminGuard(ctx, (c) => startProductPhoto(c, d.split(':')[2]));
+    if (d === 'adm:paymethods') return adminGuard(ctx, showPaymentMethods);
+    if (d === 'adm:addpm') return adminGuard(ctx, startAddPaymentMethod);
+    if (d.startsWith('adm:pmnet:')) return adminGuard(ctx, (c) => choosePaymentNetwork(c, d.split(':')[2]));
+    if (d.startsWith('adm:pm:')) return adminGuard(ctx, (c) => showPaymentMethodMenu(c, d.split(':')[2]));
+    if (d.startsWith('adm:pmsetdefault:')) return adminGuard(ctx, (c) => setDefaultPaymentMethod(c, d.split(':')[2]));
+    if (d.startsWith('adm:pmtoggle:')) return adminGuard(ctx, (c) => togglePaymentMethod(c, d.split(':')[2]));
+    if (d.startsWith('adm:pmdelconfirm:')) return adminGuard(ctx, (c) => deletePaymentMethod(c, d.split(':')[2]));
+    if (d.startsWith('adm:pmdel:')) return adminGuard(ctx, (c) => confirmDeletePaymentMethod(c, d.split(':')[2]));
 
     // unknown / no-op (e.g. "Out of stock" button)
     return ack(ctx);
