@@ -2,6 +2,7 @@ import { supabase, getSettings } from '../supabase.js';
 import {
   esc, fmtNum, shortId, safeEdit, setPending, clearPending,
   availableStock, hasKeys, notifyAdmins, statusLabel, getOrCreateUser, ack,
+  announceToChannel,
 } from '../lib.js';
 import { mainMenu, paymentMethodKeyboard } from '../keyboards.js';
 
@@ -119,6 +120,8 @@ export async function createOrder(ctx, productId, methodId) {
   await supabase.from('order_events').insert({ order_id: created.id, status: 'awaiting_payment', note: 'Order created' });
 
   await setPending(ctx.from.id, `pay|${created.id}`);
+
+  await announceToChannel(ctx, `🆕 <b>New order #${shortId(created.id)}</b>\n🛒 ${esc(p.name)}\n💵 ${fmtNum(p.price_usdt)} USDT\n💳 ${esc(method.label)}`);
 
   const text = [
     `🧾 <b>Order #${shortId(created.id)}</b>`,
@@ -293,6 +296,8 @@ export async function adminApprove(ctx, orderId) {
   }).eq('id', orderId);
 
   await supabase.from('order_events').insert({ order_id: orderId, status: 'delivered', note: 'Delivered by admin' });
+
+  await announceToChannel(ctx, `✅ <b>Order #${shortId(orderId)} delivered</b>\n🛒 ${esc(order.product_name)} — ${fmtNum(order.amount_usdt)} USDT`);
 
   // Referral reward
   try {
