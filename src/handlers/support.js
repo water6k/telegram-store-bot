@@ -1,5 +1,5 @@
 import { supabase } from '../supabase.js';
-import { esc, safeEdit, setPending, clearPending, notifyAdmins, shortId } from '../lib.js';
+import { esc, safeEdit, setPending, clearPending, notifyAdmins, shortId, ack } from '../lib.js';
 import { supportMenuKeyboard, mainMenu, homeRow } from '../keyboards.js';
 
 const TYPES = {
@@ -10,13 +10,13 @@ const TYPES = {
 };
 
 export async function showSupport(ctx) {
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
   const text = '🎫 <b>SUPPORT CENTER</b>\nChoose the type of issue.';
   await safeEdit(ctx, text, supportMenuKeyboard());
 }
 
 export async function chooseTicketType(ctx, type) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, `ticket|${type}`);
   await safeEdit(
     ctx,
@@ -61,7 +61,7 @@ export async function onCreateTicketText(ctx, pending) {
 }
 
 export async function showMyTickets(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: tickets } = await supabase
     .from('tickets')
     .select('id, subject, status, type, created_at')
@@ -85,7 +85,7 @@ export async function showMyTickets(ctx) {
 }
 
 export async function showTicket(ctx, ticketId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: ticket } = await supabase.from('tickets').select('*').eq('id', ticketId).maybeSingle();
   if (!ticket) return;
 
@@ -116,7 +116,7 @@ export async function showTicket(ctx, ticketId) {
 }
 
 export async function startUserReply(ctx, ticketId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, `utickreply|${ticketId}`);
   await safeEdit(
     ctx,
