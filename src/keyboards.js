@@ -40,8 +40,8 @@ export function productKeyboard(productId, stock) {
 }
 
 export function paymentMethodKeyboard(productId, methods) {
-  const rows = (methods || []).map((m) => [
-    { text: `💵 ${m.label}`, callback_data: `pay:${productId}:${m.id}` },
+  const rows = (methods || []).map((m, i) => [
+    { text: `💵 ${m.label}`, callback_data: `pay:${productId}:${i}` },
   ]);
   rows.push([{ text: '👈 Back', callback_data: `prod:${productId}` }]);
   return { inline_keyboard: rows };
