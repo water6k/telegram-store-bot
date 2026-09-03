@@ -17,7 +17,7 @@ import {
   confirmDeleteProduct, deleteProduct, showAdminCategories, startAddCategory,
   showAdminCategory, startRenameCategory, deleteCategory, showAdminSettings, startEditSetting,
   startProductPhoto, removeProductPhoto,
-  showPaymentMethods, startAddPaymentMethod, choosePaymentNetwork,
+  showPaymentMethods, startAddPaymentMethod, choosePaymentType, choosePaymentNetwork,
   showPaymentMethodMenu, setDefaultPaymentMethod, togglePaymentMethod,
   confirmDeletePaymentMethod, deletePaymentMethod,
 } from './handlers/admin.js';
@@ -120,6 +120,7 @@ export async function routeCallback(ctx) {
     if (d.startsWith('adm:photo:')) return adminGuard(ctx, (c) => startProductPhoto(c, d.split(':')[2]));
     if (d === 'adm:paymethods') return adminGuard(ctx, showPaymentMethods);
     if (d === 'adm:addpm') return adminGuard(ctx, startAddPaymentMethod);
+    if (d.startsWith('adm:pmtype:')) return adminGuard(ctx, (c) => choosePaymentType(c, d.split(':')[2]));
     if (d.startsWith('adm:pmnet:')) return adminGuard(ctx, (c) => choosePaymentNetwork(c, d.split(':')[2]));
     if (d.startsWith('adm:pm:')) return adminGuard(ctx, (c) => showPaymentMethodMenu(c, d.split(':')[2]));
     if (d.startsWith('adm:pmsetdefault:')) return adminGuard(ctx, (c) => setDefaultPaymentMethod(c, d.split(':')[2]));
