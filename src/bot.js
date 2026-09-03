@@ -14,6 +14,17 @@ import { mainMenu } from './keyboards.js';
 
 export const bot = new Bot(config.botToken);
 
+// Make every slash command case-insensitive (/start, /Start, /Admin, /ADMIN, ...)
+bot.use(async (ctx, next) => {
+  const text = ctx.message?.text;
+  if (text && text.startsWith('/')) {
+    const sp = text.search(/\s/);
+    const end = sp === -1 ? text.length : sp;
+    ctx.update.message.text = text.slice(0, end).toLowerCase() + text.slice(end);
+  }
+  await next();
+});
+
 bot.command('start', onStart);
 
 bot.command('menu', (ctx) =>
