@@ -16,6 +16,7 @@ import {
   showAdminProducts, showAdminProductMenu, startEditProductField, toggleProductFlag,
   confirmDeleteProduct, deleteProduct, showAdminCategories, startAddCategory,
   showAdminCategory, startRenameCategory, deleteCategory, showAdminSettings, startEditSetting,
+  startProductPhoto, removeProductPhoto,
 } from './handlers/admin.js';
 import { clearPending, isAdmin, ack } from './lib.js';
 import { mainMenu } from './keyboards.js';
@@ -112,6 +113,8 @@ export async function routeCallback(ctx) {
     if (d.startsWith('adm:cat:')) return adminGuard(ctx, (c) => showAdminCategory(c, d.split(':')[2]));
     if (d === 'adm:settings') return adminGuard(ctx, showAdminSettings);
     if (d.startsWith('adm:set:')) return adminGuard(ctx, (c) => startEditSetting(c, d.split(':')[2]));
+    if (d.startsWith('adm:photorm:')) return adminGuard(ctx, (c) => removeProductPhoto(c, d.split(':')[2]));
+    if (d.startsWith('adm:photo:')) return adminGuard(ctx, (c) => startProductPhoto(c, d.split(':')[2]));
 
     // unknown / no-op (e.g. "Out of stock" button)
     return ack(ctx);
