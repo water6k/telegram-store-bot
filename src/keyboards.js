@@ -39,6 +39,14 @@ export function productKeyboard(productId, stock) {
   };
 }
 
+export function paymentMethodKeyboard(productId, methods) {
+  const rows = (methods || []).map((m) => [
+    { text: `💵 ${m.label}`, callback_data: `pay:${productId}:${m.id}` },
+  ]);
+  rows.push([{ text: '👈 Back', callback_data: `prod:${productId}` }]);
+  return { inline_keyboard: rows };
+}
+
 export function productListKeyboard(products) {
   const rows = (products || []).map((p) => [
     { text: `${p.name} — 💵 ${fmtNum(p.price_usdt)} USDT`, callback_data: `prod:${p.id}` },
