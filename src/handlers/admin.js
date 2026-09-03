@@ -628,36 +628,68 @@ export async function showPaymentMethods(ctx) {
 
 export async function startAddPaymentMethod(ctx) {
   await ack(ctx);
-  await safeEdit(ctx, '💳 <b>Add Payment Method</b>\n\nChoose the <b>network</b>:', {
+  await safeEdit(ctx, '💳 <b>Add Payment Method</b>\n\nChoose the <b>type</b>:', {
     inline_keyboard: [
-      [{ text: 'TRC20', callback_data: 'adm:pmnet:TRC20' }, { text: 'BEP20', callback_data: 'adm:pmnet:BEP20' }],
-      [{ text: 'ERC20', callback_data: 'adm:pmnet:ERC20' }, { text: 'TON', callback_data: 'adm:pmnet:TON' }],
+      [{ text: '💵 USDT (Crypto)', callback_data: 'adm:pmtype:usdt' }, { text: '🅿️ PayPal', callback_data: 'adm:pmtype:paypal' }],
+      [{ text: '🔶 Binance Pay', callback_data: 'adm:pmtype:binance' }, { text: '🧾 Other', callback_data: 'adm:pmtype:other' }],
       [{ text: '🔙 Back', callback_data: 'adm:paymethods' }],
     ],
   });
 }
 
+export async function choosePaymentType(ctx, type) {
+  await ack(ctx);
+  if (type === 'usdt') {
+    return safeEdit(ctx, '💵 <b>USDT</b> — choose the <b>network</b>:', {
+      inline_keyboard: [
+        [{ text: 'TRC20', callback_data: 'adm:pmnet:TRC20' }, { text: 'BEP20', callback_data: 'adm:pmnet:BEP20' }],
+        [{ text: 'ERC20', callback_data: 'adm:pmnet:ERC20' }, { text: 'TON', callback_data: 'adm:pmnet:TON' }],
+        [{ text: '🔙 Back', callback_data: 'adm:addpm' }],
+      ],
+    });
+  }
+  const hints = {
+    paypal: ['🅿️ Send your <b>PayPal</b> email or @username:', 'name@email.com or @handle'],
+    binance: ['🔶 Send your <b>Binance Pay</b> ID or email:', '123456789 or name@email.com'],
+    other: ['🧾 Send the full <b>payment instructions</b> for the buyer:', 'Wise: name@email.com  /  Paytm: name@upi'],
+  };
+  const h = hints[type] || hints.other;
+  await setPending(ctx.from.id, `addpm|${type}`);
+  await safeEdit(ctx, `${h[0]}\n<code>${esc(h[1])}</code>`, {
+    inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'adm:paymethods' }]],
+  });
+}
+
 export async function choosePaymentNetwork(ctx, network) {
   await ack(ctx);
-  await setPending(ctx.from.id, `addpm|${network}`);
-  await safeEdit(ctx, `💳 Send the <b>USDT (${esc(network)})</b> wallet <b>address</b>:`, {
+  await setPending(ctx.from.id, `addpm|usdt|${network}`);
+  await safeEdit(ctx, `💵 Send the <b>USDT (${esc(network)})</b> wallet <b>address</b>:`, {
     inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'adm:paymethods' }]],
   });
 }
 
 export async function onAddPaymentAddress(ctx, pending) {
-  const network = pending.state.split('|')[1];
-  const address = (ctx.message.text || '').trim();
+  const parts = pending.state.split('|');
+  const type = parts[1] || 'usdt';
+  const network = parts[2] || '';
+  const text = (ctx.message.text || '').trim();
   await clearPending(ctx.from.id);
-  if (!address || address.length < 6) {
-    return ctx.reply('⚠️ Invalid address. Try again.', { reply_markup: mainMenu() });
+  if (!text || text.length < 3) {
+    return ctx.reply('⚠️ Invalid value. Try again.', { reply_markup: mainMenu() });
   }
+
+  let label, net;
+  if (type === 'usdt') { label = `USDT (${network})`; net = network; }
+  else if (type === 'paypal') { label = 'PayPal'; net = 'paypal'; }
+  else if (type === 'binance') { label = 'Binance Pay'; net = 'binance'; }
+  else { label = 'Other'; net = 'other'; }
+
   const { count } = await supabase.from('payment_methods').select('id', { count: 'exact', head: true });
   const { error } = await supabase.from('payment_methods').insert({
-    label: `USDT (${network})`,
-    type: 'usdt',
-    network,
-    address,
+    label,
+    type,
+    network: net,
+    address: text,
     is_active: true,
     is_default: (count || 0) === 0,
   });
@@ -674,7 +706,6 @@ export async function showPaymentMethodMenu(ctx, methodId) {
     '💳 <b>Payment Method</b>',
     '',
     `🏷️ <b>${esc(m.label)}</b>`,
-    `🌐 Network: <b>${esc(m.network)}</b>`,
     `📍 <code>${esc(m.address)}</code>`,
     `Status: ${m.is_active ? '🟢 Active' : '🔴 Inactive'}${m.is_default ? ' · ⭐ Default' : ''}`,
   ].join('\n');
