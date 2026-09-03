@@ -398,6 +398,28 @@ export async function adminApprove(ctx, orderId) {
     console.error('[DELIVER NOTIFY]', e);
   }
 
+  // Low-stock warning — so a product never silently sells out
+  try {
+    if (order.product_id) {
+      const settings = await getSettings();
+      const threshold = Number(settings.low_stock_threshold ?? 2);
+      const keyBased = await hasKeys({ id: order.product_id });
+      let remaining;
+      if (keyBased) {
+        const { count } = await supabase.from('product_keys').select('id', { count: 'exact', head: true }).eq('product_id', order.product_id).eq('is_sold', false);
+        remaining = count ?? 0;
+      } else {
+        const { data: prod } = await supabase.from('products').select('stock').eq('id', order.product_id).maybeSingle();
+        remaining = Number(prod?.stock ?? 0);
+      }
+      if (remaining <= threshold) {
+        await notifyAdmins(ctx, `⚠️ <b>Low stock</b>\n🛒 <b>${esc(order.product_name)}</b>\n📦 ${remaining <= 0 ? 'Out of stock' : remaining + ' left'}`);
+      }
+    }
+  } catch (e) {
+    console.error('[LOW STOCK]', e);
+  }
+
   await safeEdit(ctx, `✅ Order #${shortId(orderId)} delivered.`, mainMenu());
 }
 
