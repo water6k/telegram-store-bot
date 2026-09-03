@@ -23,12 +23,12 @@ bot.command('menu', (ctx) =>
   })
 );
 
-bot.command('categories', (ctx) => showCategories({ ...ctx, answerCallbackQuery: async () => {} }));
+bot.command('categories', (ctx) => showCategories(ctx));
 bot.command('search', startSearch);
-bot.command('myorders', (ctx) => showMyOrders({ ...ctx, answerCallbackQuery: async () => {} }));
-bot.command('referral', (ctx) => showReferral({ ...ctx, answerCallbackQuery: async () => {} }, false));
-bot.command('warranty', (ctx) => showWarranty({ ...ctx, answerCallbackQuery: async () => {} }, false));
-bot.command('support', (ctx) => showSupport({ ...ctx, answerCallbackQuery: async () => {} }));
+bot.command('myorders', (ctx) => showMyOrders(ctx));
+bot.command('referral', (ctx) => showReferral(ctx, false));
+bot.command('warranty', (ctx) => showWarranty(ctx, false));
+bot.command('support', (ctx) => showSupport(ctx));
 
 bot.command('admin', async (ctx) => {
   if (!(await isAdmin(ctx.from.id))) {
@@ -37,7 +37,7 @@ bot.command('admin', async (ctx) => {
       { parse_mode: 'HTML' }
     );
   }
-  return showAdmin({ ...ctx, answerCallbackQuery: async () => {} }, false);
+  return showAdmin(ctx, false);
 });
 
 bot.command('cancel', async (ctx) => {
