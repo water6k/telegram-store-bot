@@ -377,11 +377,13 @@ export async function showAdminProductMenu(ctx, productId) {
       [{ text: '✏️ Name', callback_data: `adm:pedit:name:${p.id}` }, { text: '📝 Description', callback_data: `adm:pedit:desc:${p.id}` }],
       [{ text: '💵 Price (USDT)', callback_data: `adm:pedit:usdt:${p.id}` }, { text: '🛡️ Warranty', callback_data: `adm:pedit:warr:${p.id}` }],
       [{ text: '📦 Stock', callback_data: `adm:pedit:stock:${p.id}` }, { text: '🔑 Add Keys', callback_data: `adm:akprod:${p.id}` }],
+      [{ text: p.image_url ? '🖼️ Change Photo' : '🖼️ Set Photo', callback_data: `adm:photo:${p.id}` }],
       [{ text: p.is_active ? '🔴 Deactivate' : '🟢 Activate', callback_data: `adm:ptoggle:active:${p.id}` }],
       [
         { text: p.is_trending ? '⭐ Remove Trending' : '🔥 Mark Trending', callback_data: `adm:ptoggle:trending:${p.id}` },
         { text: p.is_new ? '🆕 Remove New' : '🆕 Mark New', callback_data: `adm:ptoggle:new:${p.id}` },
       ],
+      ...(p.image_url ? [[{ text: '❌ Remove Photo', callback_data: `adm:photorm:${p.id}` }]] : []),
       [{ text: '🗑️ Delete', callback_data: `adm:pdel:${p.id}` }],
       [{ text: '🔙 Back', callback_data: 'adm:products' }],
     ],
@@ -571,4 +573,31 @@ export async function onEditSetting(ctx, pending) {
   await clearPending(ctx.from.id);
   await supabase.from('settings').upsert({ key, value });
   await ctx.reply('✅ Setting saved.', { reply_markup: mainMenu() });
+}
+
+export async function startProductPhoto(ctx, productId) {
+  await ack(ctx);
+  await setPending(ctx.from.id, `admphoto|${productId}`);
+  await safeEdit(ctx, '🖼️ Send the <b>photo</b> for this product (just send it as a normal Telegram photo):', {
+    inline_keyboard: [[{ text: '🚫 Cancel', callback_data: `adm:prod:${productId}` }]],
+  });
+}
+
+export async function onProductPhoto(ctx, pending) {
+  const productId = pending.state.split('|')[1];
+  await clearPending(ctx.from.id);
+  const photos = ctx.message?.photo;
+  if (!photos || !photos.length) {
+    return ctx.reply('⚠️ Please send a photo (not a file or text).', { reply_markup: mainMenu() });
+  }
+  const fileId = photos[photos.length - 1].file_id;
+  const { error } = await supabase.from('products').update({ image_url: fileId }).eq('id', productId);
+  if (error) return ctx.reply(`⚠️ ${esc(error.message)}`, { parse_mode: 'HTML', reply_markup: mainMenu() });
+  await ctx.reply('✅ Photo saved! It will now show on the product page.', { reply_markup: mainMenu() });
+}
+
+export async function removeProductPhoto(ctx, productId) {
+  await ack(ctx);
+  await supabase.from('products').update({ image_url: null }).eq('id', productId);
+  return showAdminProductMenu(ctx, productId);
 }
