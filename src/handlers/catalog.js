@@ -57,7 +57,20 @@ export async function showProduct(ctx, productId) {
   const { data: p } = await supabase.from('products').select('*').eq('id', productId).maybeSingle();
   if (!p) return ack(ctx, { text: 'Product not found', show_alert: true });
   const stock = await availableStock(p);
-  await safeEdit(ctx, productText(p, stock), productKeyboard(p.id, stock));
+  const caption = productText(p, stock);
+  const kb = productKeyboard(p.id, stock);
+  if (p.image_url) {
+    try {
+      await ctx.editMessageMedia(
+        { type: 'photo', media: p.image_url, caption, parse_mode: 'HTML' },
+        { reply_markup: kb }
+      );
+    } catch (e) {
+      await ctx.replyWithPhoto(p.image_url, { caption, parse_mode: 'HTML', reply_markup: kb }).catch(() => {});
+    }
+  } else {
+    await safeEdit(ctx, caption, kb);
+  }
 }
 
 async function listByFlag(ctx, title, field, count = 20) {
