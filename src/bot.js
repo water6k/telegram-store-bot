@@ -31,7 +31,12 @@ bot.command('warranty', (ctx) => showWarranty({ ...ctx, answerCallbackQuery: asy
 bot.command('support', (ctx) => showSupport({ ...ctx, answerCallbackQuery: async () => {} }));
 
 bot.command('admin', async (ctx) => {
-  if (!(await isAdmin(ctx.from.id))) return;
+  if (!(await isAdmin(ctx.from.id))) {
+    return ctx.reply(
+      '🛠️ <b>Admins only.</b>\n\nYour Telegram ID is: <code>' + ctx.from.id + '</code>\n\nPut this number in <code>ADMIN_TELEGRAM_ID</code> in Vercel → Settings → Environment Variables, then redeploy.',
+      { parse_mode: 'HTML' }
+    );
+  }
   return showAdmin({ ...ctx, answerCallbackQuery: async () => {} }, false);
 });
 
