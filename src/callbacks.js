@@ -3,6 +3,7 @@ import {
 } from './handlers/catalog.js';
 import {
   createOrder, cancelOrder, showMyOrders, showOrder, adminApprove, adminReject,
+  showApproveConfirm, showRejectConfirm,
 } from './handlers/checkout.js';
 import { showReferral, startWithdraw } from './handlers/referral.js';
 import { showWarranty } from './handlers/warranty.js';
@@ -86,8 +87,10 @@ export async function routeCallback(ctx) {
     }
     if (d === 'adm:orders') return adminGuard(ctx, showAdminOrders);
     if (d.startsWith('adm:order:')) return adminGuard(ctx, (c) => showAdminOrder(c, d.slice(10)));
-    if (d.startsWith('adm:approve:')) return adminGuard(ctx, (c) => adminApprove(c, d.slice(12)));
-    if (d.startsWith('adm:reject:')) return adminGuard(ctx, (c) => adminReject(c, d.slice(11)));
+    if (d.startsWith('adm:approve:')) return adminGuard(ctx, (c) => showApproveConfirm(c, d.slice(12)));
+    if (d.startsWith('adm:deliver:')) return adminGuard(ctx, (c) => adminApprove(c, d.slice(12)));
+    if (d.startsWith('adm:reject:')) return adminGuard(ctx, (c) => showRejectConfirm(c, d.slice(11)));
+    if (d.startsWith('adm:doreject:')) return adminGuard(ctx, (c) => adminReject(c, d.slice(13)));
     if (d === 'adm:tickets') return adminGuard(ctx, showAdminTickets);
     if (d.startsWith('adm:ticket:')) return adminGuard(ctx, (c) => showAdminTicket(c, d.slice(11)));
     if (d.startsWith('adm:tclose:')) return adminGuard(ctx, (c) => closeTicket(c, d.slice(11)));
