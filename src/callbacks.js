@@ -17,11 +17,11 @@ import {
   confirmDeleteProduct, deleteProduct, showAdminCategories, startAddCategory,
   showAdminCategory, startRenameCategory, deleteCategory, showAdminSettings, startEditSetting,
 } from './handlers/admin.js';
-import { clearPending, isAdmin } from './lib.js';
+import { clearPending, isAdmin, ack } from './lib.js';
 import { mainMenu } from './keyboards.js';
 
 function home(ctx) {
-  ctx.answerCallbackQuery().catch(() => {});
+  ack(ctx);
   return ctx.editMessageText('🏠 <b>MAIN MENU</b>\nChoose an option below 👇', {
     parse_mode: 'HTML',
     reply_markup: mainMenu(),
@@ -30,7 +30,7 @@ function home(ctx) {
 
 export async function routeCallback(ctx) {
   const data = ctx.callbackQuery?.data;
-  if (!data) return ctx.answerCallbackQuery().catch(() => {});
+  if (!data) return ack(ctx);
 
   try {
     const d = data;
@@ -70,7 +70,7 @@ export async function routeCallback(ctx) {
     // ---- referral ----
     if (d === 'withdraw') return startWithdraw(ctx);
     if (d === 'cancel') {
-      await ctx.answerCallbackQuery().catch(() => {});
+      await ack(ctx);
       await clearPending(ctx.from.id);
       return home(ctx);
     }
@@ -78,7 +78,7 @@ export async function routeCallback(ctx) {
     // ---- admin ----
     if (d === 'adm:panel') {
       if (await isAdmin(ctx.from.id)) return showAdmin(ctx, true);
-      return ctx.answerCallbackQuery({ text: 'Admins only', show_alert: true }).catch(() => {});
+      return ack(ctx, { text: 'Admins only', show_alert: true });
     }
     if (d === 'adm:orders') return adminGuard(ctx, showAdminOrders);
     if (d.startsWith('adm:order:')) return adminGuard(ctx, (c) => showAdminOrder(c, d.slice(10)));
@@ -114,16 +114,16 @@ export async function routeCallback(ctx) {
     if (d.startsWith('adm:set:')) return adminGuard(ctx, (c) => startEditSetting(c, d.split(':')[2]));
 
     // unknown / no-op (e.g. "Out of stock" button)
-    return ctx.answerCallbackQuery().catch(() => {});
+    return ack(ctx);
   } catch (err) {
     console.error('[CALLBACK ERROR]', err);
-    return ctx.answerCallbackQuery({ text: 'Something went wrong', show_alert: true }).catch(() => {});
+    return ack(ctx, { text: 'Something went wrong', show_alert: true });
   }
 }
 
 async function adminGuard(ctx, fn) {
   if (!(await isAdmin(ctx.from.id))) {
-    return ctx.answerCallbackQuery({ text: 'Admins only', show_alert: true }).catch(() => {});
+    return ack(ctx, { text: 'Admins only', show_alert: true });
   }
   return fn(ctx);
 }
