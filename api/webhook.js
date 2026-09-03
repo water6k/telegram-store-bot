@@ -27,8 +27,8 @@ export default async function handler(req, res) {
     }
     const update = JSON.parse(raw.toString('utf-8'));
 
-    // Lazily fetch bot info once per cold start (for referral links etc.)
-    if (!bot.botInfo) await bot.init();
+    // Load bot info once per cold start (cached after the first call)
+    await bot.init();
     await bot.handleUpdate(update);
 
     res.statusCode = 200;
