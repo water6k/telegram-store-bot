@@ -79,7 +79,7 @@ export async function routeCallback(ctx) {
     // ---- admin ----
     if (d === 'adm:panel') {
       if (await isAdmin(ctx.from.id)) return showAdmin(ctx, true);
-      return ack(ctx, { text: 'Admins only', show_alert: true });
+      return ack(ctx, { text: 'You are not authorised', show_alert: true });
     }
     if (d === 'adm:orders') return adminGuard(ctx, showAdminOrders);
     if (d.startsWith('adm:order:')) return adminGuard(ctx, (c) => showAdminOrder(c, d.slice(10)));
@@ -126,7 +126,7 @@ export async function routeCallback(ctx) {
 
 async function adminGuard(ctx, fn) {
   if (!(await isAdmin(ctx.from.id))) {
-    return ack(ctx, { text: 'Admins only', show_alert: true });
+    return ack(ctx, { text: 'You are not authorised', show_alert: true });
   }
   return fn(ctx);
 }
