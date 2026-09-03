@@ -34,6 +34,7 @@ export async function showAdmin(ctx, edit = true) {
     inline_keyboard: [
       [{ text: `🛒 Pending Orders (${pending ?? 0})`, callback_data: 'adm:orders' }],
       [{ text: '📦 Manage Products', callback_data: 'adm:products' }],
+      [{ text: '💳 Payment Methods', callback_data: 'adm:paymethods' }],
       [{ text: '📁 Categories', callback_data: 'adm:cats' }, { text: '⚙️ Settings', callback_data: 'adm:settings' }],
       [{ text: '➕ Add Product', callback_data: 'adm:addproduct' }, { text: '🔑 Add Keys', callback_data: 'adm:addkeys' }],
       [{ text: `🎫 Tickets (${tickets ?? 0})`, callback_data: 'adm:tickets' }],
@@ -538,8 +539,6 @@ export async function deleteCategory(ctx, catId) {
 // ---- Store settings ----
 
 const EDITABLE_SETTINGS = [
-  { key: 'usdt_address', label: '💵 USDT Address', hint: 'your TRC20 address' },
-  { key: 'usdt_network', label: '🌐 USDT Network', hint: 'TRC20 / BEP20 / ERC20' },
   { key: 'store_name', label: '🏪 Store Name' },
   { key: 'welcome_text', label: '👋 Welcome Message' },
   { key: 'referral_percent', label: '🎁 Referral %' },
@@ -600,4 +599,132 @@ export async function removeProductPhoto(ctx, productId) {
   await ack(ctx);
   await supabase.from('products').update({ image_url: null }).eq('id', productId);
   return showAdminProductMenu(ctx, productId);
+}
+
+// ---- Payment methods (add / edit / delete wallets) ----
+
+function maskAddr(a) {
+  if (!a) return '—';
+  if (a.length <= 10) return a;
+  return a.slice(0, 6) + '…' + a.slice(-4);
+}
+
+export async function showPaymentMethods(ctx) {
+  await ack(ctx);
+  const { data: methods } = await supabase
+    .from('payment_methods')
+    .select('*')
+    .order('is_default', { ascending: false })
+    .order('created_at');
+
+  const rows = (methods || []).map((m) => [
+    { text: `${m.is_default ? '⭐ ' : ''}${m.is_active ? '🟢' : '🔴'} ${m.label} — ${maskAddr(m.address)}`, callback_data: `adm:pm:${m.id}` },
+  ]);
+  rows.push([{ text: '➕ Add Payment Method', callback_data: 'adm:addpm' }]);
+  rows.push([{ text: '🔙 Back', callback_data: 'adm:panel' }]);
+
+  await safeEdit(ctx, '💳 <b>Payment Methods</b>\nTap a method to manage it.\n\nBuyers pay via the <b>⭐ default</b> (or pick one if several are enabled).', { inline_keyboard: rows });
+}
+
+export async function startAddPaymentMethod(ctx) {
+  await ack(ctx);
+  await safeEdit(ctx, '💳 <b>Add Payment Method</b>\n\nChoose the <b>network</b>:', {
+    inline_keyboard: [
+      [{ text: 'TRC20', callback_data: 'adm:pmnet:TRC20' }, { text: 'BEP20', callback_data: 'adm:pmnet:BEP20' }],
+      [{ text: 'ERC20', callback_data: 'adm:pmnet:ERC20' }, { text: 'TON', callback_data: 'adm:pmnet:TON' }],
+      [{ text: '🔙 Back', callback_data: 'adm:paymethods' }],
+    ],
+  });
+}
+
+export async function choosePaymentNetwork(ctx, network) {
+  await ack(ctx);
+  await setPending(ctx.from.id, `addpm|${network}`);
+  await safeEdit(ctx, `💳 Send the <b>USDT (${esc(network)})</b> wallet <b>address</b>:`, {
+    inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'adm:paymethods' }]],
+  });
+}
+
+export async function onAddPaymentAddress(ctx, pending) {
+  const network = pending.state.split('|')[1];
+  const address = (ctx.message.text || '').trim();
+  await clearPending(ctx.from.id);
+  if (!address || address.length < 6) {
+    return ctx.reply('⚠️ Invalid address. Try again.', { reply_markup: mainMenu() });
+  }
+  const { count } = await supabase.from('payment_methods').select('id', { count: 'exact', head: true });
+  const { error } = await supabase.from('payment_methods').insert({
+    label: `USDT (${network})`,
+    type: 'usdt',
+    network,
+    address,
+    is_active: true,
+    is_default: (count || 0) === 0,
+  });
+  if (error) return ctx.reply(`⚠️ ${esc(error.message)}`, { parse_mode: 'HTML', reply_markup: mainMenu() });
+  await ctx.reply('✅ Payment method added.', { reply_markup: mainMenu() });
+}
+
+export async function showPaymentMethodMenu(ctx, methodId) {
+  await ack(ctx);
+  const { data: m } = await supabase.from('payment_methods').select('*').eq('id', methodId).maybeSingle();
+  if (!m) return;
+
+  const text = [
+    '💳 <b>Payment Method</b>',
+    '',
+    `🏷️ <b>${esc(m.label)}</b>`,
+    `🌐 Network: <b>${esc(m.network)}</b>`,
+    `📍 <code>${esc(m.address)}</code>`,
+    `Status: ${m.is_active ? '🟢 Active' : '🔴 Inactive'}${m.is_default ? ' · ⭐ Default' : ''}`,
+  ].join('\n');
+
+  const kb = {
+    inline_keyboard: [
+      [
+        { text: m.is_default ? '⭐ Default' : '⭐ Set Default', callback_data: `adm:pmsetdefault:${m.id}` },
+        { text: m.is_active ? '🔴 Disable' : '🟢 Enable', callback_data: `adm:pmtoggle:${m.id}` },
+      ],
+      [{ text: '🗑️ Delete', callback_data: `adm:pmdel:${m.id}` }],
+      [{ text: '🔙 Back', callback_data: 'adm:paymethods' }],
+    ],
+  };
+  await safeEdit(ctx, text, kb);
+}
+
+export async function setDefaultPaymentMethod(ctx, methodId) {
+  await ack(ctx);
+  await supabase.from('payment_methods').update({ is_default: false }).neq('id', methodId);
+  await supabase.from('payment_methods').update({ is_default: true }).eq('id', methodId);
+  return showPaymentMethodMenu(ctx, methodId);
+}
+
+export async function togglePaymentMethod(ctx, methodId) {
+  await ack(ctx);
+  const { data: m } = await supabase.from('payment_methods').select('is_active').eq('id', methodId).maybeSingle();
+  if (!m) return;
+  await supabase.from('payment_methods').update({ is_active: !m.is_active }).eq('id', methodId);
+  return showPaymentMethodMenu(ctx, methodId);
+}
+
+export async function confirmDeletePaymentMethod(ctx, methodId) {
+  await ack(ctx);
+  await safeEdit(ctx, '🗑️ Delete this payment method?', {
+    inline_keyboard: [
+      [{ text: '✅ Yes, delete', callback_data: `adm:pmdelconfirm:${methodId}` }, { text: '❌ No', callback_data: `adm:pm:${methodId}` }],
+    ],
+  });
+}
+
+export async function deletePaymentMethod(ctx, methodId) {
+  await ack(ctx);
+  await supabase.from('payment_methods').delete().eq('id', methodId);
+  const { count } = await supabase.from('payment_methods').select('id', { count: 'exact', head: true }).eq('is_default', true);
+  if ((count || 0) === 0) {
+    const { data: first } = await supabase.from('payment_methods').select('id').order('created_at').limit(1).maybeSingle();
+    if (first) await supabase.from('payment_methods').update({ is_default: true }).eq('id', first.id);
+  }
+  await safeEdit(ctx, '🗑️ Payment method deleted.', {
+    inline_keyboard: [[{ text: '🔙 Back', callback_data: 'adm:paymethods' }]],
+  });
 }
