@@ -1,9 +1,9 @@
 import { supabase } from '../supabase.js';
-import { esc, safeEdit } from '../lib.js';
+import { esc, safeEdit, ack } from '../lib.js';
 import { mainMenu } from '../keyboards.js';
 
 export async function showWarranty(ctx, edit = true) {
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
 
   const { data: orders } = await supabase
     .from('orders')
