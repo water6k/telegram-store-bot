@@ -88,16 +88,6 @@ export async function createOrder(ctx, productId, methodId) {
     method = { id: null, label: `USDT (${legacyNet})`, network: legacyNet, address: legacyAddr };
   }
 
-  // Reserve stock for manual-stock products (key-based products are claimed at delivery)
-  const keyBased = await hasKeys(p);
-  if (!keyBased) {
-    const { error: decErr } = await supabase.rpc('decrement_stock', { p_id: p.id });
-    if (decErr) {
-      await safeEdit(ctx, '😢 Sorry, this product just went out of stock.', mainMenu());
-      return;
-    }
-  }
-
   const order = {
     user_id: ctx.from.id,
     username: ctx.from.username ?? ctx.from.first_name ?? 'unknown',
@@ -113,15 +103,12 @@ export async function createOrder(ctx, productId, methodId) {
 
   const { data: created, error } = await supabase.from('orders').insert(order).select().single();
   if (error || !created) {
-    if (!keyBased) await supabase.rpc('increment_stock', { p_id: p.id });
     return safeEdit(ctx, 'Something went wrong creating your order. Please try again.', mainMenu());
   }
 
   await supabase.from('order_events').insert({ order_id: created.id, status: 'awaiting_payment', note: 'Order created' });
 
   await setPending(ctx.from.id, `pay|${created.id}`);
-
-  await announceToChannel(ctx, `🆕 <b>New order #${shortId(created.id)}</b>\n🛒 ${esc(p.name)}\n💵 ${fmtNum(p.price_usdt)} USDT\n💳 ${esc(method.label)}`);
 
   const text = [
     `🧾 <b>Order #${shortId(created.id)}</b>`,
@@ -152,11 +139,6 @@ export async function cancelOrder(ctx, orderId) {
   if (!order) return;
 
   if (['awaiting_payment'].includes(order.status)) {
-    // restore manual-stock reservation
-    if (order.product_id) {
-      const keyBased = await hasKeys({ id: order.product_id });
-      if (!keyBased) await supabase.rpc('increment_stock', { p_id: order.product_id });
-    }
     await supabase.from('orders').update({ status: 'cancelled' }).eq('id', orderId);
     await supabase.from('order_events').insert({ order_id: orderId, status: 'cancelled', note: 'Cancelled by user' });
   }
@@ -282,10 +264,10 @@ export async function showApproveConfirm(ctx, orderId) {
         ? `🔑 Keys in stock: <b>${keys}</b>`
         : '⚠️ <b>No keys left</b> — add keys (🔑 Add Keys) before delivering.';
     } else {
-      const { data: prod } = await supabase.from('products').select('delivery_instructions').eq('id', o.product_id).maybeSingle();
-      stockNote = prod?.delivery_instructions
+      const { data: prod } = await supabase.from('products').select('delivery_instructions, stock').eq('id', o.product_id).maybeSingle();
+      stockNote = `📦 Stock left: <b>${prod?.stock ?? 0}</b>\n` + (prod?.delivery_instructions
         ? '📄 Delivery via stored instructions.'
-        : '⚠️ No instructions set — delivery will say "contact support".';
+        : '⚠️ No instructions set — delivery will say "contact support".');
     }
   }
 
@@ -335,14 +317,21 @@ export async function adminApprove(ctx, orderId) {
     return safeEdit(ctx, `Order #${shortId(orderId)} is already ${order.status}.`, mainMenu());
   }
 
-  // Deliver: claim a key atomically; never deliver an empty serial-stock product
+  // Deliver: consume stock only on approval. Key-based → claim key; manual → decrement stock.
   let deliveredText = null;
   if (order.product_id) {
     const keyBased = await hasKeys({ id: order.product_id });
-    const { data: key } = await supabase.rpc('claim_product_key', { p_product_id: order.product_id, p_order_id: order.id });
-    deliveredText = key || null;
-    if (!deliveredText && keyBased) {
-      return safeEdit(ctx, `⚠️ <b>No keys available</b> for this product.\nAdd keys via 🔑 <b>Add Keys</b>, then approve again.`, mainMenu());
+    if (keyBased) {
+      const { data: key } = await supabase.rpc('claim_product_key', { p_product_id: order.product_id, p_order_id: order.id });
+      deliveredText = key || null;
+      if (!deliveredText) {
+        return safeEdit(ctx, `⚠️ <b>No keys available</b> for this product.\nAdd keys via 🔑 <b>Add Keys</b>, then approve again.`, mainMenu());
+      }
+    } else {
+      const { data: decremented } = await supabase.rpc('decrement_stock', { p_id: order.product_id });
+      if (!decremented) {
+        return safeEdit(ctx, `⚠️ <b>Out of stock</b> — cannot deliver this order.`, mainMenu());
+      }
     }
   }
   if (!deliveredText) {
@@ -419,12 +408,6 @@ export async function adminReject(ctx, orderId) {
 
   if (!['payment_submitted', 'awaiting_payment', 'paid'].includes(order.status)) {
     return safeEdit(ctx, `Order #${shortId(orderId)} is already ${order.status}.`, mainMenu());
-  }
-
-  // restore stock if it was reserved
-  if (order.product_id && !['delivered'].includes(order.status)) {
-    const keyBased = await hasKeys({ id: order.product_id });
-    if (!keyBased) await supabase.rpc('increment_stock', { p_id: order.product_id });
   }
 
   await supabase.from('orders').update({ status: 'rejected' }).eq('id', orderId);
