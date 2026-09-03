@@ -7,6 +7,7 @@ import { onWithdrawText } from './referral.js';
 import {
   onAdminTicketReply, onAddProductStep, onAddKeys, onBroadcastText,
   onEditProductField, onAddCategory, onRenameCategory, onEditSetting, onProductPhoto,
+  onAddPaymentAddress,
 } from './admin.js';
 
 export async function onText(ctx) {
@@ -48,6 +49,8 @@ export async function onText(ctx) {
       return onRenameCategory(ctx, pending);
     case 'admset':
       return onEditSetting(ctx, pending);
+    case 'addpm':
+      return onAddPaymentAddress(ctx, pending);
     default:
       await clearPending(tgId);
       return ctx.reply('Action cancelled.', { reply_markup: mainMenu() });
