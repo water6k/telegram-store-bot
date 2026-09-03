@@ -23,8 +23,17 @@ export function adminOrderText(order) {
     `👤 ${esc(order.username || 'unknown')} (<code>${order.user_id}</code>)`,
     `🛒 ${esc(order.product_name)}`,
     `💳 ${esc(order.payment_method || 'USDT')} — ${fmtNum(order.amount_usdt)} USDT`,
-    `🔑 TXID: <code>${esc(order.tx_id || '—')}</code>`,
+    `🔑 Ref/TXID: <code>${esc(order.tx_id || '—')}</code>`,
   ].join('\n');
+}
+
+function paymentLines(label, detail) {
+  const l = label || 'USDT';
+  const code = `<code>${esc(detail || '')}</code>`;
+  if (/^usdt/i.test(l)) return [`💳 Pay via <b>${esc(l)}</b>`, code];
+  if (/paypal/i.test(l)) return ['🅿️ Send the amount to your <b>PayPal</b>:', code];
+  if (/binance/i.test(l)) return ['🔶 Send the amount via <b>Binance Pay</b> to:', code];
+  return ['💳 Pay to:', code];
 }
 
 export async function createOrder(ctx, productId, methodId) {
@@ -116,10 +125,9 @@ export async function createOrder(ctx, productId, methodId) {
     `🛒 ${esc(p.name)}`,
     `💵 Amount: <b>${fmtNum(p.price_usdt)} USDT</b>`,
     '',
-    `💳 Pay via <b>${esc(method.label)}</b>`,
-    `<code>${esc(method.address)}</code>`,
+    ...paymentLines(method.label, method.address),
     '',
-    'After sending, paste your <b>transaction hash / TXID</b> here.',
+    'After sending, paste your <b>transaction reference / ID</b> here.',
     '⏳ Your order is reserved for 24 hours.',
   ].join('\n');
 
@@ -224,7 +232,7 @@ export async function showOrder(ctx, orderId) {
     `📅 ${new Date(o.created_at).toLocaleString('en-GB', { hour12: false })}`,
   ];
 
-  if (o.tx_id) lines.push(`🔑 TXID: <code>${esc(o.tx_id)}</code>`);
+  if (o.tx_id) lines.push(`🔑 Ref/TXID: <code>${esc(o.tx_id)}</code>`);
 
   let keyboard;
   if (o.status === 'awaiting_payment') {
@@ -234,9 +242,9 @@ export async function showOrder(ctx, orderId) {
         [{ text: '🏠 Main Menu', callback_data: 'm:home' }],
       ],
     };
-    lines.push('', `👉 Send <b>${fmtNum(o.amount_usdt)} USDT</b> via <b>${esc(o.payment_method || 'USDT')}</b>:`);
-    lines.push(`<code>${esc(o.wallet_snapshot)}</code>`);
-    lines.push('Then paste the TXID here.');
+    lines.push('');
+    lines.push(...paymentLines(o.payment_method, o.wallet_snapshot));
+    lines.push('Then paste the transaction reference / ID here.');
     await setPending(ctx.from.id, `pay|${o.id}`);
   } else if (o.status === 'delivered' && o.delivered_text) {
     lines.push('', '🎁 <b>Your product:</b>');
