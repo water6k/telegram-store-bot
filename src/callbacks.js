@@ -9,6 +9,7 @@ import { showReferral, startWithdraw } from './handlers/referral.js';
 import { showWarranty } from './handlers/warranty.js';
 import {
   showSupport, chooseTicketType, showMyTickets, showTicket, startUserReply,
+  chooseTicketOrder, setFreeFormTicket,
 } from './handlers/support.js';
 import {
   showAdmin, showAdminOrders, showAdminOrder, showAdminTickets, showAdminTicket,
@@ -68,6 +69,11 @@ export async function routeCallback(ctx) {
 
     // ---- support ----
     if (d.startsWith('ticktype:')) return chooseTicketType(ctx, d.slice(9));
+    if (d.startsWith('tickord:')) {
+      const [, type, orderId] = d.split(':');
+      return chooseTicketOrder(ctx, type, orderId);
+    }
+    if (d.startsWith('ticketplain:')) return setFreeFormTicket(ctx, d.slice(12));
     if (d === 'mytickets') return showMyTickets(ctx);
     if (d.startsWith('tick:')) return showTicket(ctx, d.slice(5));
     if (d.startsWith('ticketreply:')) return startUserReply(ctx, d.slice(12));
