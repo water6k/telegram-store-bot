@@ -540,6 +540,7 @@ export async function deleteCategory(ctx, catId) {
 
 const EDITABLE_SETTINGS = [
   { key: 'store_name', label: '🏪 Store Name' },
+  { key: 'low_stock_threshold', label: '🩸 Low-Stock Alert', hint: 'warn when ≤ this (default 2)' },
   { key: 'welcome_text', label: '👋 Welcome Message' },
   { key: 'referral_percent', label: '🎁 Referral %' },
   { key: 'support_username', label: '🆘 Support @username' },
