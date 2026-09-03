@@ -1,5 +1,5 @@
 import { supabase, getSettings } from '../supabase.js';
-import { getOrCreateUser, esc, fmtNum, safeEdit, setPending, clearPending, notifyAdmins } from '../lib.js';
+import { getOrCreateUser, esc, fmtNum, safeEdit, setPending, clearPending, notifyAdmins, ack } from '../lib.js';
 import { mainMenu, homeRow } from '../keyboards.js';
 
 async function referralLink(user) {
@@ -11,7 +11,7 @@ async function referralLink(user) {
 
 export async function showReferral(ctx, edit = true) {
   await getOrCreateUser(ctx);
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
 
   const { data: user } = await supabase.from('users').select('*').eq('telegram_id', ctx.from.id).maybeSingle();
   if (!user) return;
@@ -52,7 +52,7 @@ export async function showReferral(ctx, edit = true) {
 }
 
 export async function startWithdraw(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, 'withdraw');
   await safeEdit(
     ctx,
