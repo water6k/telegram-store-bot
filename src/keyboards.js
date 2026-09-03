@@ -55,15 +55,17 @@ export function productListKeyboard(products) {
   return { inline_keyboard: rows };
 }
 
-export function supportMenuKeyboard() {
-  return {
-    inline_keyboard: [
-      [{ text: '💳 Payment Problem', callback_data: 'ticktype:payment' }, { text: '📦 Order Problem', callback_data: 'ticktype:order' }],
-      [{ text: '🔑 Account Problem', callback_data: 'ticktype:account' }, { text: '❓ Other', callback_data: 'ticktype:other' }],
-      [{ text: '📋 My Tickets', callback_data: 'mytickets' }],
-      homeRow(),
-    ],
-  };
+export function supportMenuKeyboard(supportUsername) {
+  const rows = [
+    [{ text: '💳 Payment Problem', callback_data: 'ticktype:payment' }, { text: '📦 Order Problem', callback_data: 'ticktype:order' }],
+    [{ text: '🔑 Account Problem', callback_data: 'ticktype:account' }, { text: '❓ Other', callback_data: 'ticktype:other' }],
+  ];
+  if (supportUsername) {
+    rows.push([{ text: '👤 Contact Support', url: `https://t.me/${supportUsername}` }]);
+  }
+  rows.push([{ text: '📋 My Tickets', callback_data: 'mytickets' }]);
+  rows.push(homeRow());
+  return { inline_keyboard: rows };
 }
 
 function fmtNum(n) {
