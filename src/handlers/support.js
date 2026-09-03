@@ -1,5 +1,5 @@
-import { supabase } from '../supabase.js';
-import { esc, safeEdit, setPending, clearPending, notifyAdmins, shortId, ack } from '../lib.js';
+import { supabase, getSettings } from '../supabase.js';
+import { esc, fmtNum, shortId, safeEdit, setPending, clearPending, notifyAdmins, statusLabel, ack } from '../lib.js';
 import { supportMenuKeyboard, mainMenu, homeRow } from '../keyboards.js';
 
 const TYPES = {
@@ -11,26 +11,85 @@ const TYPES = {
 
 export async function showSupport(ctx) {
   await ack(ctx);
-  const text = '🎫 <b>SUPPORT CENTER</b>\nChoose the type of issue.';
-  await safeEdit(ctx, text, supportMenuKeyboard());
+  const settings = await getSettings();
+  const support = (settings.support_username || 'scratch1m').replace(/^@/, '');
+  const text = '🎫 <b>SUPPORT CENTER</b>\nChoose the type of issue — or contact support directly.';
+  await safeEdit(ctx, text, supportMenuKeyboard(support));
 }
 
 export async function chooseTicketType(ctx, type) {
   await ack(ctx);
+  if (type === 'order' || type === 'payment') {
+    return showOrderPicker(ctx, type);
+  }
   await setPending(ctx.from.id, `ticket|${type}`);
-  await safeEdit(
-    ctx,
-    `${TYPES[type] || '❓ Support'}\n\nPlease describe your issue in one message. You can include your Order ID.`,
-    { inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'cancel' }]] }
-  );
+  await safeEdit(ctx, `${TYPES[type] || '❓ Support'}\n\nPlease describe your issue in one message.`, {
+    inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'cancel' }]],
+  });
+}
+
+export async function showOrderPicker(ctx, type) {
+  await ack(ctx);
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('id, product_name, status, created_at')
+    .eq('user_id', ctx.from.id)
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  if (!orders || !orders.length) {
+    await setPending(ctx.from.id, `ticket|${type}`);
+    return safeEdit(ctx, `${TYPES[type]}\n\nYou have no orders yet — please describe your issue:`, {
+      inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'cancel' }]],
+    });
+  }
+
+  const rows = orders.map((o) => [
+    { text: `#${shortId(o.id)} · ${o.product_name.slice(0, 18)} (${statusLabel(o.status).split(' ')[0]})`, callback_data: `tickord:${type}:${o.id}` },
+  ]);
+  rows.push([{ text: '📝 None of these / other issue', callback_data: `ticketplain:${type}` }]);
+  rows.push([{ text: '🚫 Cancel', callback_data: 'm:support' }]);
+
+  await safeEdit(ctx, '📦 <b>Which order</b> is this about?', { inline_keyboard: rows });
+}
+
+export async function chooseTicketOrder(ctx, type, orderId) {
+  await ack(ctx);
+  await setPending(ctx.from.id, `ticketord|${type}|${orderId}`);
+  await safeEdit(ctx, `${TYPES[type]}\n\nDescribe the issue (send <b>-</b> to skip):`, {
+    inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'cancel' }]],
+  });
+}
+
+export async function setFreeFormTicket(ctx, type) {
+  await ack(ctx);
+  await setPending(ctx.from.id, `ticket|${type}`);
+  await safeEdit(ctx, `${TYPES[type]}\n\nPlease describe your issue in one message.`, {
+    inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'cancel' }]],
+  });
 }
 
 export async function onCreateTicketText(ctx, pending) {
-  const type = pending.state.split('|')[1] || 'other';
-  const subject = (ctx.message.text || '').trim();
+  const parts = pending.state.split('|'); // 'ticket|type' or 'ticketord|type|orderId'
   await clearPending(ctx.from.id);
 
-  if (!subject) return ctx.reply('Ticket cancelled.', { reply_markup: mainMenu() });
+  let type = parts[1] || 'other';
+  let order = null;
+  let desc = (ctx.message.text || '').trim();
+
+  if (parts[0] === 'ticketord') {
+    const orderId = parts[2];
+    const { data: o } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+    order = o || null;
+    if (desc === '-') desc = '';
+  } else {
+    if (!desc) return ctx.reply('Ticket cancelled.', { reply_markup: mainMenu() });
+  }
+
+  let subject = desc;
+  if (order) {
+    subject = `Order #${shortId(order.id)} · ${order.product_name}` + (desc ? `\n${desc}` : '');
+  }
 
   const { data: ticket, error } = await supabase
     .from('tickets')
@@ -38,7 +97,7 @@ export async function onCreateTicketText(ctx, pending) {
       user_id: ctx.from.id,
       username: ctx.from.username ?? ctx.from.first_name ?? 'unknown',
       type,
-      subject,
+      subject: subject || TYPES[type],
       status: 'open',
     })
     .select()
@@ -53,11 +112,22 @@ export async function onCreateTicketText(ctx, pending) {
     { parse_mode: 'HTML', reply_markup: mainMenu() }
   );
 
-  await notifyAdmins(
-    ctx,
-    `🎫 <b>New ticket #${shortId(ticket.id)}</b>\n👤 ${esc(ticket.username)} (<code>${ticket.user_id}</code>)\n📌 Type: ${esc(TYPES[type] || type)}\n💬 ${esc(subject)}`,
-    { inline_keyboard: [[{ text: '💬 Reply', callback_data: `adm:treply:${ticket.id}` }]] }
-  );
+  const lines = [
+    `🎫 <b>New ticket #${shortId(ticket.id)}</b>`,
+    `👤 ${esc(ticket.username)} (<code>${ticket.user_id}</code>)`,
+    `📌 Type: ${esc(TYPES[type] || type)}`,
+  ];
+  if (order) {
+    lines.push(
+      `🛒 <b>${esc(order.product_name)}</b>`,
+      `💳 ${esc(order.payment_method || 'USDT')} — ${fmtNum(order.amount_usdt)} USDT`,
+      `📦 ${esc(statusLabel(order.status))}`
+    );
+    if (order.tx_id) lines.push(`🔑 Ref/TXID: <code>${esc(order.tx_id)}</code>`);
+  }
+  if (desc) lines.push(`💬 ${esc(desc)}`);
+
+  await notifyAdmins(ctx, lines.join('\n'), { inline_keyboard: [[{ text: '💬 Reply', callback_data: `adm:treply:${ticket.id}` }]] });
 }
 
 export async function showMyTickets(ctx) {
