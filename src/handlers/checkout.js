@@ -3,7 +3,7 @@ import {
   esc, fmtNum, shortId, safeEdit, setPending, clearPending,
   availableStock, hasKeys, notifyAdmins, statusLabel, getOrCreateUser, ack,
 } from '../lib.js';
-import { mainMenu } from '../keyboards.js';
+import { mainMenu, paymentMethodKeyboard } from '../keyboards.js';
 
 async function adminOrderKeyboard(order) {
   return {
@@ -22,12 +22,12 @@ export function adminOrderText(order) {
     `🧾 Order #${shortId(order.id)}`,
     `👤 ${esc(order.username || 'unknown')} (<code>${order.user_id}</code>)`,
     `🛒 ${esc(order.product_name)}`,
-    `💳 USDT (Binance) — ${fmtNum(order.amount_usdt)} USDT`,
+    `💳 ${esc(order.payment_method || 'USDT')} — ${fmtNum(order.amount_usdt)} USDT`,
     `🔑 TXID: <code>${esc(order.tx_id || '—')}</code>`,
   ].join('\n');
 }
 
-export async function createOrder(ctx, productId) {
+export async function createOrder(ctx, productId, methodId) {
   await ack(ctx);
   const { data: p } = await supabase.from('products').select('*').eq('id', productId).maybeSingle();
   if (!p) return;
@@ -36,6 +36,45 @@ export async function createOrder(ctx, productId) {
   if (stock <= 0) {
     await safeEdit(ctx, '😢 Sorry, this product just went out of stock.', mainMenu());
     return;
+  }
+
+  // Resolve the payment method (supports multiple wallets/networks)
+  const { data: methods, error: pmErr } = await supabase
+    .from('payment_methods')
+    .select('*')
+    .eq('is_active', true)
+    .order('is_default', { ascending: false })
+    .order('sort_order')
+    .order('created_at');
+
+  let method = null;
+  if (!pmErr && methods && methods.length > 0) {
+    if (methodId) {
+      method = methods.find((m) => m.id === methodId) || null;
+    } else if (methods.length === 1) {
+      method = methods[0];
+    } else {
+      // several active methods → let the buyer pick
+      await safeEdit(
+        ctx,
+        `💳 <b>Checkout</b>\n\n🛒 ${esc(p.name)}\n💵 <b>${fmtNum(p.price_usdt)} USDT</b>\n\nChoose a payment method:`,
+        paymentMethodKeyboard(p.id, methods)
+      );
+      return;
+    }
+  }
+
+  if (!method) {
+    // Legacy fallback (payment_methods table missing or empty)
+    const settings = await getSettings();
+    const legacyAddr = settings.usdt_address;
+    const legacyNet = settings.usdt_network || 'TRC20';
+    const isPlaceholder = !legacyAddr || legacyAddr === 'TKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' || legacyAddr.includes('xxxx');
+    if (isPlaceholder) {
+      await safeEdit(ctx, '⚠️ This store has no payment method configured yet.', mainMenu());
+      return;
+    }
+    method = { id: null, label: `USDT (${legacyNet})`, network: legacyNet, address: legacyAddr };
   }
 
   // Reserve stock for manual-stock products (key-based products are claimed at delivery)
@@ -48,18 +87,16 @@ export async function createOrder(ctx, productId) {
     }
   }
 
-  const settings = await getSettings();
-
   const order = {
     user_id: ctx.from.id,
     username: ctx.from.username ?? ctx.from.first_name ?? 'unknown',
     product_id: p.id,
     product_name: p.name,
     category_name: null,
-    payment_method: 'usdt',
+    payment_method: method.label,
     amount_usdt: p.price_usdt,
     amount_inr: p.price_inr,
-    wallet_snapshot: settings.usdt_address,
+    wallet_snapshot: method.address,
     status: 'awaiting_payment',
   };
 
@@ -79,8 +116,8 @@ export async function createOrder(ctx, productId) {
     `🛒 ${esc(p.name)}`,
     `💵 Amount: <b>${fmtNum(p.price_usdt)} USDT</b>`,
     '',
-    `👉 Send exactly the amount above via <b>${esc(settings.usdt_network || 'TRC20')}</b>:`,
-    `<code>${esc(settings.usdt_address)}</code>`,
+    `💳 Pay via <b>${esc(method.label)}</b>`,
+    `<code>${esc(method.address)}</code>`,
     '',
     'After sending, paste your <b>transaction hash / TXID</b> here.',
     '⏳ Your order is reserved for 24 hours.',
@@ -181,7 +218,7 @@ export async function showOrder(ctx, orderId) {
     `🧾 <b>Order #${shortId(o.id)}</b>`,
     '',
     `🛒 ${esc(o.product_name)}`,
-    `💳 USDT (Binance)`,
+    `💳 ${esc(o.payment_method || 'USDT')}`,
     `💰 ${fmtNum(o.amount_usdt)} USDT`,
     `📦 Status: <b>${esc(statusLabel(o.status))}</b>`,
     `📅 ${new Date(o.created_at).toLocaleString('en-GB', { hour12: false })}`,
@@ -197,9 +234,8 @@ export async function showOrder(ctx, orderId) {
         [{ text: '🏠 Main Menu', callback_data: 'm:home' }],
       ],
     };
-    const settings = await getSettings();
-    lines.push('', `👉 Pay <b>${fmtNum(o.amount_usdt)} USDT</b> (${esc(settings.usdt_network || 'TRC20')}):`);
-    lines.push(`<code>${esc(o.wallet_snapshot || settings.usdt_address)}</code>`);
+    lines.push('', `👉 Send <b>${fmtNum(o.amount_usdt)} USDT</b> via <b>${esc(o.payment_method || 'USDT')}</b>:`);
+    lines.push(`<code>${esc(o.wallet_snapshot)}</code>`);
     lines.push('Then paste the TXID here.');
     await setPending(ctx.from.id, `pay|${o.id}`);
   } else if (o.status === 'delivered' && o.delivered_text) {
