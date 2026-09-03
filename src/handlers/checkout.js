@@ -58,8 +58,9 @@ export async function createOrder(ctx, productId, methodId) {
 
   let method = null;
   if (!pmErr && methods && methods.length > 0) {
-    if (methodId) {
-      method = methods.find((m) => m.id === methodId) || null;
+    if (methodId !== undefined && methodId !== null && methodId !== '') {
+      const idx = parseInt(methodId, 10);
+      method = methods[idx] || null;
     } else if (methods.length === 1) {
       method = methods[0];
     } else {
