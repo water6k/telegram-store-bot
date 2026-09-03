@@ -28,6 +28,7 @@ export async function onText(ctx) {
     case 'pay':
       return onPaymentText(ctx, pending);
     case 'ticket':
+    case 'ticketord':
       return onCreateTicketText(ctx, pending);
     case 'utickreply':
       return onUserReply(ctx, pending);
