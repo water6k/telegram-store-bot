@@ -1,7 +1,7 @@
 import { supabase, getSettings } from '../supabase.js';
 import {
   esc, fmtNum, shortId, safeEdit, setPending, clearPending,
-  getPending, isAdmin, notifyAdmins, statusLabel, getAdminIds,
+  getPending, isAdmin, notifyAdmins, statusLabel, getAdminIds, ack,
 } from '../lib.js';
 import { mainMenu, homeRow } from '../keyboards.js';
 import { adminApprove, adminReject, adminOrderText } from './checkout.js';
@@ -10,7 +10,7 @@ export async function showAdmin(ctx, edit = true) {
   const admin = await isAdmin(ctx.from.id);
   if (!admin) return;
 
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
 
   const [{ count: users }, { count: orders }, { count: pending }, { count: products }, { count: tickets }] =
     await Promise.all([
@@ -47,7 +47,7 @@ export async function showAdmin(ctx, edit = true) {
 }
 
 export async function showAdminOrders(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: orders } = await supabase
     .from('orders')
     .select('*')
@@ -70,7 +70,7 @@ export async function showAdminOrders(ctx) {
 }
 
 export async function showAdminOrder(ctx, orderId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: o } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
   if (!o) return;
 
@@ -94,7 +94,7 @@ export async function showAdminOrder(ctx, orderId) {
 }
 
 export async function showAdminTickets(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: tickets } = await supabase
     .from('tickets')
     .select('*')
@@ -116,7 +116,7 @@ export async function showAdminTickets(ctx) {
 }
 
 export async function showAdminTicket(ctx, ticketId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: ticket } = await supabase.from('tickets').select('*').eq('id', ticketId).maybeSingle();
   if (!ticket) return;
 
@@ -148,7 +148,7 @@ export async function showAdminTicket(ctx, ticketId) {
 }
 
 export async function closeTicket(ctx, ticketId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await supabase.from('tickets').update({ status: 'closed' }).eq('id', ticketId);
   const { data: t } = await supabase.from('tickets').select('user_id').eq('id', ticketId).maybeSingle();
   if (t) {
@@ -160,7 +160,7 @@ export async function closeTicket(ctx, ticketId) {
 }
 
 export async function startAdminTicketReply(ctx, ticketId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, `atickreply|${ticketId}`);
   await safeEdit(ctx, '💬 Send your reply (it will be forwarded to the user):', {
     inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'adm:ticket:' + ticketId }]],
@@ -196,7 +196,7 @@ export async function onAdminTicketReply(ctx, pending) {
 // ---- Add product (name -> desc -> usdt -> inr -> warranty -> category) ----
 
 export async function startAddProduct(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, 'ap|name');
   await safeEdit(ctx, '➕ <b>Add Product — Step 1/4</b>\n\nSend the product <b>name</b>:', {
     inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'adm:panel' }]],
@@ -246,7 +246,7 @@ export async function onAddProductStep(ctx, pending) {
 }
 
 export async function finishAddProduct(ctx, categoryId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const pending = await getPending(ctx.from.id);
   const c = pending?.context || {};
   if (!c.name) {
@@ -275,7 +275,7 @@ export async function finishAddProduct(ctx, categoryId) {
 // ---- Add keys ----
 
 export async function startAddKeysList(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: products } = await supabase.from('products').select('id, name').order('name').limit(50);
   if (!products || !products.length) return safeEdit(ctx, 'No products yet.', mainMenu());
   const rows = products.map((p) => [{ text: p.name, callback_data: `adm:akprod:${p.id}` }]);
@@ -284,7 +284,7 @@ export async function startAddKeysList(ctx) {
 }
 
 export async function startAddKeys(ctx, productId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: p } = await supabase.from('products').select('name').eq('id', productId).maybeSingle();
   await setPending(ctx.from.id, `ak|${productId}`);
   await safeEdit(ctx, `🔑 Adding keys to <b>${esc(p?.name || 'product')}</b>\n\nPaste the keys — <b>one per line</b>:`, {
@@ -307,7 +307,7 @@ export async function onAddKeys(ctx, pending) {
 // ---- Broadcast ----
 
 export async function startBroadcast(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, 'broadcast');
   await safeEdit(ctx, '📣 Send the message to broadcast to <b>all users</b>:', {
     inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'adm:panel' }]],
@@ -333,7 +333,7 @@ export async function onBroadcastText(ctx) {
 // ---- Manage products (view / edit / delete / toggle) ----
 
 export async function showAdminProducts(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: products } = await supabase
     .from('products')
     .select('id, name, price_usdt, is_active')
@@ -358,7 +358,7 @@ export async function showAdminProducts(ctx) {
 }
 
 export async function showAdminProductMenu(ctx, productId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: p } = await supabase.from('products').select('*').eq('id', productId).maybeSingle();
   if (!p) return;
 
@@ -398,7 +398,7 @@ const PRODUCT_FIELDS = {
 };
 
 export async function startEditProductField(ctx, field, productId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, `admp|${field}|${productId}`);
   await safeEdit(ctx, `✏️ Send the new <b>${esc(PRODUCT_FIELDS[field] || 'value')}</b>:`, {
     inline_keyboard: [[{ text: '🚫 Cancel', callback_data: `adm:prod:${productId}` }]],
@@ -436,7 +436,7 @@ export async function onEditProductField(ctx, pending) {
 }
 
 export async function toggleProductFlag(ctx, field, productId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const flag = field === 'active' ? 'is_active' : field === 'trending' ? 'is_trending' : 'is_new';
   const { data: p } = await supabase.from('products').select(flag).eq('id', productId).maybeSingle();
   if (!p) return;
@@ -445,7 +445,7 @@ export async function toggleProductFlag(ctx, field, productId) {
 }
 
 export async function confirmDeleteProduct(ctx, productId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: p } = await supabase.from('products').select('name').eq('id', productId).maybeSingle();
   await safeEdit(ctx, `🗑️ Delete "<b>${esc(p?.name || 'product')}</b>"?\nThis also removes its keys.`, {
     inline_keyboard: [
@@ -458,7 +458,7 @@ export async function confirmDeleteProduct(ctx, productId) {
 }
 
 export async function deleteProduct(ctx, productId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await supabase.from('products').delete().eq('id', productId);
   await safeEdit(ctx, '🗑️ Product deleted.', {
     inline_keyboard: [[{ text: '🔙 Back', callback_data: 'adm:products' }]],
@@ -468,7 +468,7 @@ export async function deleteProduct(ctx, productId) {
 // ---- Categories ----
 
 export async function showAdminCategories(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: cats } = await supabase.from('categories').select('*').order('sort_order').order('name');
   const rows = (cats || []).map((c) => [
     { text: `${c.emoji || '📁'} ${c.name}`, callback_data: `adm:cat:${c.id}` },
@@ -479,7 +479,7 @@ export async function showAdminCategories(ctx) {
 }
 
 export async function startAddCategory(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, 'admcatadd');
   await safeEdit(ctx, '➕ Send the new category <b>name</b>:', {
     inline_keyboard: [[{ text: '🚫 Cancel', callback_data: 'adm:cats' }]],
@@ -496,7 +496,7 @@ export async function onAddCategory(ctx) {
 }
 
 export async function showAdminCategory(ctx, catId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const { data: cat } = await supabase.from('categories').select('*').eq('id', catId).maybeSingle();
   if (!cat) return;
   const { count } = await supabase.from('products').select('id', { count: 'exact', head: true }).eq('category_id', catId);
@@ -509,7 +509,7 @@ export async function showAdminCategory(ctx, catId) {
 }
 
 export async function startRenameCategory(ctx, catId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, `admcatrename|${catId}`);
   await safeEdit(ctx, '✏️ Send the new name:', {
     inline_keyboard: [[{ text: '🚫 Cancel', callback_data: `adm:cat:${catId}` }]],
@@ -526,7 +526,7 @@ export async function onRenameCategory(ctx, pending) {
 }
 
 export async function deleteCategory(ctx, catId) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   await supabase.from('categories').delete().eq('id', catId);
   await safeEdit(ctx, '🗑️ Category deleted (its products are now uncategorized).', {
     inline_keyboard: [[{ text: '🔙 Back', callback_data: 'adm:cats' }]],
@@ -546,7 +546,7 @@ const EDITABLE_SETTINGS = [
 ];
 
 export async function showAdminSettings(ctx) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const settings = await getSettings();
   const rows = EDITABLE_SETTINGS.map((s) => [
     { text: `${s.label} — ${String(settings[s.key] ?? '').slice(0, 22) || '—'}`, callback_data: `adm:set:${s.key}` },
@@ -556,7 +556,7 @@ export async function showAdminSettings(ctx) {
 }
 
 export async function startEditSetting(ctx, key) {
-  await ctx.answerCallbackQuery().catch(() => {});
+  await ack(ctx);
   const s = EDITABLE_SETTINGS.find((x) => x.key === key);
   const hint = s?.hint ? ` (${s.hint})` : '';
   await setPending(ctx.from.id, `admset|${key}`);
