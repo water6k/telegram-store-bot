@@ -95,6 +95,13 @@ export async function safeEdit(ctx, text, keyboard) {
   }
 }
 
+export async function ack(ctx, opts) {
+  if (!ctx.callbackQuery) return;
+  try {
+    await ctx.answerCallbackQuery(opts);
+  } catch {}
+}
+
 export async function setPending(telegramId, state, context = {}) {
   await supabase.from('pending_inputs').upsert({
     telegram_id: telegramId,
