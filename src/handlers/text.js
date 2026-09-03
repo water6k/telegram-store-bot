@@ -6,7 +6,7 @@ import { onCreateTicketText, onUserReply } from './support.js';
 import { onWithdrawText } from './referral.js';
 import {
   onAdminTicketReply, onAddProductStep, onAddKeys, onBroadcastText,
-  onEditProductField, onAddCategory, onRenameCategory, onEditSetting,
+  onEditProductField, onAddCategory, onRenameCategory, onEditSetting, onProductPhoto,
 } from './admin.js';
 
 export async function onText(ctx) {
@@ -57,6 +57,9 @@ export async function onText(ctx) {
 export async function onNonText(ctx) {
   const tgId = ctx.from.id;
   const pending = await getPending(tgId);
+  if (pending && pending.state.startsWith('admphoto')) {
+    return onProductPhoto(ctx, pending);
+  }
   if (pending && pending.state.startsWith('pay')) {
     return ctx.reply(
       '📸 Screenshot received! To complete payment verification, please also send the <b>transaction hash / UTR as text</b>.',
