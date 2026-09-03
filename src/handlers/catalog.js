@@ -1,5 +1,5 @@
 import { supabase } from '../supabase.js';
-import { esc, fmtNum, safeEdit, availableStock, setPending, clearPending } from '../lib.js';
+import { esc, fmtNum, safeEdit, availableStock, setPending, clearPending, ack } from '../lib.js';
 import {
   categoriesKeyboard,
   productListKeyboard,
@@ -23,7 +23,7 @@ function productText(p, stock) {
 }
 
 export async function showCategories(ctx) {
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
   const { data: cats } = await supabase.from('categories').select('*').order('sort_order').order('name');
   const { data: products } = await supabase.from('products').select('category_id').eq('is_active', true);
 
@@ -35,7 +35,7 @@ export async function showCategories(ctx) {
 }
 
 export async function showCategory(ctx, categoryId) {
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
   const { data: cat } = await supabase.from('categories').select('*').eq('id', categoryId).maybeSingle();
   const { data: products } = await supabase
     .from('products')
@@ -53,15 +53,15 @@ export async function showCategory(ctx, categoryId) {
 }
 
 export async function showProduct(ctx, productId) {
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
   const { data: p } = await supabase.from('products').select('*').eq('id', productId).maybeSingle();
-  if (!p) return ctx.answerCallbackQuery({ text: 'Product not found', show_alert: true }).catch(() => {});
+  if (!p) return ack(ctx, { text: 'Product not found', show_alert: true });
   const stock = await availableStock(p);
   await safeEdit(ctx, productText(p, stock), productKeyboard(p.id, stock));
 }
 
 async function listByFlag(ctx, title, field, count = 20) {
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
   const { data: products } = await supabase
     .from('products')
     .select('id, name, price_usdt')
@@ -85,7 +85,7 @@ export async function showNew(ctx) {
 }
 
 export async function showAll(ctx) {
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
   const { data: products } = await supabase
     .from('products')
     .select('id, name, price_usdt')
@@ -99,7 +99,7 @@ export async function showAll(ctx) {
 }
 
 export async function startSearch(ctx) {
-  await ctx.answerCallbackQuery?.().catch(() => {});
+  await ack(ctx);
   await setPending(ctx.from.id, 'search');
   await safeEdit(ctx, '🔍 Type the product name you are looking for:', mainMenu());
 }
