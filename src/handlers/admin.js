@@ -544,6 +544,7 @@ const EDITABLE_SETTINGS = [
   { key: 'referral_percent', label: '🎁 Referral %' },
   { key: 'support_username', label: '🆘 Support @username' },
   { key: 'admin_ids', label: '👑 Admin IDs', hint: 'comma separated' },
+  { key: 'order_channel', label: '📣 Orders Channel', hint: '@channel or -100…' },
 ];
 
 export async function showAdminSettings(ctx) {
